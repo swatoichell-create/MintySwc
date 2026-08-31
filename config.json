@@ -1,0 +1,5 @@
+{
+  "localServerAddress": "0.0.0.0:19132",
+  "targetServerAddress": "0.0.0.0:19133",
+  "logLevel": "INFO"
+}
