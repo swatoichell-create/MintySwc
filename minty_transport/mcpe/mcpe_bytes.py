@@ -33,6 +33,10 @@ class McpeBytes:
         return int(degrees / McpeProtocol.BYTE_ANGLE_UNIT) & 0xff
 
     @staticmethod
+    def angle_to_byte(degrees: float) -> int:
+        return int(degrees / McpeProtocol.BYTE_ANGLE_UNIT) & 0xff
+
+    @staticmethod
     def byte_angle_to_degrees(value: int) -> float:
         return (value & 0xff) * McpeProtocol.BYTE_ANGLE_UNIT
 

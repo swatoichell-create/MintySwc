@@ -15,7 +15,7 @@ class MintyProxy(LocalRakNetServerListener):
         self.bridges: Dict[LocalRakNetSession, ProxyBridge] = {}
         self.server = LocalRakNetServer(
             bind_address=local_address,
-            advertisement="MCPE;MintySwc Proxy;84;0.15.10;0;20",
+            advertisement="MCPE;MintySwc Proxy;84;0.15.10;1;10",
             listener=self,
         )
         self._running = False

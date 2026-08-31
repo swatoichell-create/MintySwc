@@ -22,7 +22,11 @@ async def main():
 
     config_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("config.json")
 
-    config = ConfigLoader.load(config_path)
+    try:
+        config = ConfigLoader.load(config_path)
+    except Exception as e:
+        logger.error(f"Failed to load config from {config_path}: {e}")
+        sys.exit(1)
 
     LogLevelConfigurer.apply(config.log_level)
 
@@ -50,6 +54,8 @@ async def main():
             await asyncio.sleep(1)
     except asyncio.CancelledError:
         logger.info("Main loop cancelled")
+    except Exception as e:
+        logger.error(f"Main loop error: {e}", exc_info=True)
     finally:
         await proxy.stop()
         logger.info("MintySwc stopped")
@@ -60,5 +66,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nShutdown requested by user")
     except Exception as e:
-        logging.error(f"Fatal error: {e}")
+        logging.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)

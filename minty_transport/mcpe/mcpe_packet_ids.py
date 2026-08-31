@@ -19,6 +19,7 @@ class McpePacketIds:
     NEW_CONTAINER_SET_SLOT = 0x2c
     NEW_PLAYER_LIST = 0x38
     NEW_REQUEST_CHUNK_RADIUS = 0x3d
+    NEW_REMOVE_ENTITY = 0x0c
 
     OLD_LOGIN = 0x8f
     OLD_BATCH = 0x92

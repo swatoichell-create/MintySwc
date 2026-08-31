@@ -68,6 +68,74 @@ class McpePacketMap:
     OLD_TO_NEW = {old_id: new_id for new_id, old_id in NEW_TO_OLD.items()}
 
     @staticmethod
+    def label(packet_id: int, new_protocol: bool) -> str:
+        if new_protocol:
+            return McpePacketMap._new_label(packet_id) or f"0x{packet_id:02x}"
+        else:
+            return McpePacketMap._old_label(packet_id) or f"0x{packet_id:02x}"
+
+    @staticmethod
+    def _new_label(packet_id: int) -> str:
+        labels = {
+            0x01: "LOGIN",
+            0x02: "PLAY_STATUS",
+            0x03: "SERVER_TO_CLIENT_HANDSHAKE",
+            0x04: "CLIENT_TO_SERVER_HANDSHAKE",
+            0x05: "DISCONNECT",
+            0x06: "BATCH",
+            0x07: "TEXT",
+            0x08: "SET_TIME",
+            0x09: "START_GAME",
+            0x0a: "ADD_PLAYER",
+            0x0b: "ADD_ENTITY",
+            0x0f: "MOVE_ENTITY",
+            0x10: "MOVE_PLAYER",
+            0x12: "REMOVE_BLOCK",
+            0x13: "UPDATE_BLOCK",
+            0x1b: "MOB_EQUIPMENT",
+            0x1c: "MOB_ARMOR_EQUIPMENT",
+            0x1e: "INTERACT",
+            0x1f: "USE_ITEM",
+            0x20: "PLAYER_ACTION",
+            0x23: "SET_ENTITY_MOTION",
+            0x27: "ANIMATE",
+            0x2c: "CONTAINER_SET_SLOT",
+            0x38: "PLAYER_LIST",
+            0x3d: "REQUEST_CHUNK_RADIUS",
+        }
+        return labels.get(packet_id)
+
+    @staticmethod
+    def _old_label(packet_id: int) -> str:
+        labels = {
+            0x8f: "LOGIN",
+            0x90: "PLAY_STATUS",
+            0x91: "DISCONNECT",
+            0x92: "BATCH",
+            0x93: "TEXT",
+            0x94: "SET_TIME",
+            0x95: "START_GAME",
+            0x96: "ADD_PLAYER",
+            0x97: "REMOVE_PLAYER",
+            0x98: "ADD_ENTITY",
+            0x9c: "MOVE_ENTITY",
+            0x9d: "MOVE_PLAYER",
+            0x9e: "REMOVE_BLOCK",
+            0x9f: "UPDATE_BLOCK",
+            0xa7: "MOB_EQUIPMENT",
+            0xa8: "MOB_ARMOR_EQUIPMENT",
+            0xa9: "INTERACT",
+            0xaa: "USE_ITEM",
+            0xab: "PLAYER_ACTION",
+            0xae: "SET_ENTITY_MOTION",
+            0xb2: "ANIMATE",
+            0xb7: "CONTAINER_SET_SLOT",
+            0xc8: "REQUEST_CHUNK_RADIUS",
+            0xc9: "CHUNK_RADIUS_UPDATE",
+        }
+        return labels.get(packet_id)
+
+    @staticmethod
     def label(id: int, new_protocol: bool) -> str:
         name = McpePacketMap._new_label(id) if new_protocol else McpePacketMap._old_label(id)
         if name is None:

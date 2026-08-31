@@ -7,7 +7,7 @@ from enum import IntEnum
 
 class RakNetPacketId(IntEnum):
     UNCONNECTED_PING = 0x00
-    UNCONNECTED_PING_OPEN_CONNECTIONS = 0x02
+    UNCONNECTED_PING_OPEN_CONNECTIONS = 0x01
     OPEN_CONNECTION_REQUEST_1 = 0x05
     OPEN_CONNECTION_REPLY_1 = 0x06
     OPEN_CONNECTION_REQUEST_2 = 0x07
@@ -20,6 +20,22 @@ class RakNetPacketId(IntEnum):
     CONNECTED_PONG = 0x03
     ACK = 0xC0
     NACK = 0xA0
+    DATA_PACKET_0 = 0x80
+    DATA_PACKET_1 = 0x81
+    DATA_PACKET_2 = 0x82
+    DATA_PACKET_3 = 0x83
+    DATA_PACKET_4 = 0x84
+    DATA_PACKET_5 = 0x85
+    DATA_PACKET_6 = 0x86
+    DATA_PACKET_7 = 0x87
+    DATA_PACKET_8 = 0x88
+    DATA_PACKET_9 = 0x89
+    DATA_PACKET_A = 0x8A
+    DATA_PACKET_B = 0x8B
+    DATA_PACKET_C = 0x8C
+    DATA_PACKET_D = 0x8D
+    DATA_PACKET_E = 0x8E
+    DATA_PACKET_F = 0x8F
 
 
 class RakNetReliability(IntEnum):
@@ -62,6 +78,7 @@ class RakNetProtocol:
     PROTOCOL_VERSION = 8
     MTU = 1400
     MAX_SPLIT_SIZE = 500
+    MAX_PACKET_SIZE = 0x10000
     ACK_DELAY = 0.05
     NACK_DELAY = 0.02
     TIMEOUT = 30.0
@@ -75,6 +92,73 @@ class RakNetProtocol:
         buffer.extend(RakNetProtocol._encode_magic())
         buffer.extend(client_guid.to_bytes(8, byteorder='big', signed=False))
         return bytes(buffer)
+
+    @staticmethod
+    def encode_unconnected_pong(timestamp: int, server_guid: int, advertisement: str) -> bytes:
+        buffer = bytearray()
+        buffer.append(RakNetPacketId.UNCONNECTED_PING_OPEN_CONNECTIONS)
+        buffer.extend(timestamp.to_bytes(8, byteorder='big', signed=False))
+        buffer.extend(RakNetProtocol._encode_magic())
+        buffer.extend(server_guid.to_bytes(8, byteorder='big', signed=False))
+        buffer.extend(len(advertisement).to_bytes(2, byteorder='big', signed=False))
+        buffer.extend(advertisement.encode('utf-8'))
+        return bytes(buffer)
+
+    @staticmethod
+    def encode_connection_request(client_guid: int, timestamp: int, security: bool = False) -> bytes:
+        buffer = bytearray()
+        buffer.append(RakNetPacketId.CONNECTION_REQUEST)
+        buffer.extend(client_guid.to_bytes(8, byteorder='big', signed=False))
+        buffer.extend(timestamp.to_bytes(8, byteorder='big', signed=False))
+        buffer.append(0x00 if not security else 0x01)
+        buffer.extend(RakNetProtocol._encode_magic())
+        buffer.extend(bytearray(16))
+        return bytes(buffer)
+
+    @staticmethod
+    def encode_connection_request_accepted(server_address: Tuple[str, int], system_index: int, internal_address: Tuple[str, int], system_addresses: List[Tuple[str, int]], request_timestamp: int, request_timestamp_reply: int) -> bytes:
+        buffer = bytearray()
+        buffer.append(RakNetPacketId.CONNECTION_REQUEST_ACCEPTED)
+        buffer.extend(RakNetProtocol._encode_address(server_address[0], server_address[1]))
+        buffer.extend(system_index.to_bytes(2, byteorder='big', signed=False))
+        buffer.extend(RakNetProtocol._encode_address(internal_address[0], internal_address[1]))
+        buffer.extend(len(system_addresses).to_bytes(2, byteorder='big', signed=False))
+        for addr in system_addresses:
+            buffer.extend(RakNetProtocol._encode_address(addr[0], addr[1]))
+        buffer.extend(request_timestamp.to_bytes(8, byteorder='big', signed=False))
+        buffer.extend(request_timestamp_reply.to_bytes(8, byteorder='big', signed=False))
+        return bytes(buffer)
+
+    @staticmethod
+    def encode_new_incoming_connection(server_address: Tuple[str, int], internal_address: Tuple[str, int], system_addresses: List[Tuple[str, int]], request_timestamp: int, request_timestamp_reply: int) -> bytes:
+        buffer = bytearray()
+        buffer.append(RakNetPacketId.NEW_INCOMING_CONNECTION)
+        buffer.extend(RakNetProtocol._encode_address(server_address[0], server_address[1]))
+        buffer.extend(RakNetProtocol._encode_address(internal_address[0], internal_address[1]))
+        buffer.extend(len(system_addresses).to_bytes(2, byteorder='big', signed=False))
+        for addr in system_addresses:
+            buffer.extend(RakNetProtocol._encode_address(addr[0], addr[1]))
+        buffer.extend(request_timestamp.to_bytes(8, byteorder='big', signed=False))
+        buffer.extend(request_timestamp_reply.to_bytes(8, byteorder='big', signed=False))
+        return bytes(buffer)
+
+    @staticmethod
+    def encode_connected_ping(timestamp: int) -> bytes:
+        buffer = bytearray()
+        buffer.append(RakNetPacketId.CONNECTED_PING)
+        buffer.extend(timestamp.to_bytes(8, byteorder='big', signed=False))
+        return bytes(buffer)
+
+    @staticmethod
+    def encode_connected_pong(timestamp: int) -> bytes:
+        buffer = bytearray()
+        buffer.append(RakNetPacketId.CONNECTED_PONG)
+        buffer.extend(timestamp.to_bytes(8, byteorder='big', signed=False))
+        return bytes(buffer)
+
+    @staticmethod
+    def encode_disconnect_notification() -> bytes:
+        return bytes([RakNetPacketId.DISCONNECT_NOTIFICATION])
 
     @staticmethod
     def encode_open_connection_request_1(client_guid: int, mtu: int) -> bytes:
@@ -112,9 +196,32 @@ class RakNetProtocol:
             return b''
 
         buffer = bytearray()
+        packet_id = 0x80 | (sequence_number & 0x0F)
+        buffer.append(packet_id)
+
         for packet in packets:
-            frame_header = RakNetProtocol._encode_frame_header(packet, sequence_number)
-            buffer.extend(frame_header)
+            frame_header = (packet.reliability << 5) & 0xE0
+            frame_header |= 0x10 if packet.message_index > 0 else 0
+            frame_header |= 0x08 if packet.sequence_index > 0 else 0
+            frame_header |= 0x20 if packet.split_count > 0 else 0
+
+            buffer.append(frame_header)
+
+            if packet.message_index > 0:
+                buffer.extend(packet.message_index.to_bytes(3, byteorder='little', signed=False))
+
+            if packet.sequence_index > 0:
+                buffer.extend(packet.sequence_index.to_bytes(3, byteorder='little', signed=False))
+
+            if packet.reliability in [2, 3, 4, 6]:
+                buffer.append(packet.ordering_channel)
+
+            if packet.split_count > 0:
+                buffer.extend(packet.split_count.to_bytes(2, byteorder='big', signed=False))
+                buffer.extend(packet.split_id.to_bytes(2, byteorder='big', signed=False))
+                buffer.append(packet.split_index)
+
+            buffer.extend(len(packet.data).to_bytes(2, byteorder='big', signed=False))
             buffer.extend(packet.data)
 
         return bytes(buffer)

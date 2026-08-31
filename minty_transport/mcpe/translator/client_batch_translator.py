@@ -1,62 +1,31 @@
-
 from typing import List
 from ..packet_translator import PacketTranslator
 from ..packet_direction import PacketDirection
 from ..packet_translation_context import PacketTranslationContext
 from ..mcpe_packet_ids import McpePacketIds
+from ..mcpe_protocol import McpeProtocol
 from ..mcpe_bytes import McpeBytes
-from ...util.byte_reader import ByteReader
+from ..batch_codec import BatchCodec
 from ...util.zlib import Zlib
+import logging
 
 class ClientBatchTranslator(PacketTranslator):
     def __init__(self):
         super().__init__(PacketDirection.CLIENT_TO_SERVER, McpePacketIds.NEW_BATCH, McpePacketIds.OLD_BATCH)
+        self.logger = logging.getLogger("minty_transport.mcpe.translator.ClientBatchTranslator")
 
     def translate(self, packet: bytes, context: PacketTranslationContext) -> List[bytes]:
-        reader = ByteReader(packet)
-        reader.skip(1)
-
-        compressed = reader.byte()
-        data_len = reader.int_be()
-
-        if compressed == 0:
-
-            data = reader.bytes(data_len)
-        else:
-
-            compressed_data = reader.bytes(data_len)
-            data = Zlib.inflate(compressed_data)
-
-        packets = self._split_packets(data)
+        inflated = Zlib.inflate(BatchCodec.read_batch_payload(packet))
         translated_packets = []
-        for pkt in packets:
-            for translated in context.translate_client_to_server(pkt):
-                translated_packets.append(translated)
 
-        return [self._build_batch(translated_packets)]
+        def process_inner_game(inner_new_game):
+            new_game = McpeBytes.strip_marker(inner_new_game, McpeProtocol.NEW_MARKER)
+            translated_packets.extend(context.translate_client_to_server(new_game))
 
-    def _split_packets(self, data: bytes) -> List[bytes]:
-        packets = []
-        offset = 0
-        while offset < len(data):
-            if offset + 4 > len(data):
-                break
-            length = int.from_bytes(data[offset:offset+4], byteorder='little')
-            offset += 4
-            if offset + length > len(data):
-                break
-            packets.append(data[offset:offset+length])
-            offset += length
-        return packets
+        BatchCodec.for_each_batch_packet(inflated, process_inner_game)
 
-    def _build_batch(self, packets: List[bytes]) -> bytes:
-        builder = bytearray()
-        builder.append(McpePacketIds.OLD_BATCH)
-        builder.append(0)
-        data_builder = bytearray()
-        for pkt in packets:
-            data_builder.extend(len(pkt).to_bytes(4, byteorder='little'))
-            data_builder.extend(pkt)
-        builder.extend(len(data_builder).to_bytes(4, byteorder='big'))
-        builder.extend(data_builder)
-        return bytes(builder)
+        if not translated_packets:
+            return []
+
+        self.logger.debug(f"C->S batch unbatched into {len(translated_packets)} direct 0.14 packet(s)")
+        return translated_packets

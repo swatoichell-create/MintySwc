@@ -45,7 +45,7 @@ class LocalRakNetSession:
 
         packet_id = payload[0] if payload else 0
 
-        if packet_id == 0x80:
+        if 0x80 <= packet_id <= 0x8F:
             self._handle_frame_set(payload[1:])
         elif packet_id == 0xC0:
             ack_numbers = RakNetProtocol.decode_ack(payload)
@@ -56,6 +56,12 @@ class LocalRakNetSession:
             for packet in retransmit:
                 encoded = self._connection._encode_packet(packet)
                 self._transport.sendto(encoded, self.client_address)
+        elif packet_id == RakNetPacketId.CONNECTED_PING:
+            self._handle_connected_ping(payload)
+        elif packet_id == RakNetPacketId.CONNECTED_PONG:
+            self._handle_connected_pong(payload)
+        elif packet_id == RakNetPacketId.DISCONNECT_NOTIFICATION:
+            self.close_from_proxy("client disconnect")
         else:
             self.listener.on_client_payload(self, payload)
 
@@ -68,6 +74,15 @@ class LocalRakNetSession:
         if ack_packet and self._transport:
             ack_data = bytes([0xC0]) + ack_packet
             self._transport.sendto(ack_data, self.client_address)
+
+    def _handle_connected_ping(self, data: bytes):
+        if len(data) >= 9 and self._transport:
+            timestamp = int.from_bytes(data[1:9], byteorder='big')
+            pong = RakNetProtocol.encode_connected_pong(timestamp)
+            self._transport.sendto(pong, self.client_address)
+
+    def _handle_connected_pong(self, data: bytes):
+        pass
 
     def _close_internal(self, reason: str, notify_listener: bool):
         if self._closed:

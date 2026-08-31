@@ -53,13 +53,16 @@ class _RakNetServerProtocol(asyncio.DatagramProtocol):
 
             if packet_id == RakNetPacketId.UNCONNECTED_PING:
                 self._handle_unconnected_ping(data, addr)
+            elif packet_id == RakNetPacketId.UNCONNECTED_PING_OPEN_CONNECTIONS:
+                self._handle_unconnected_ping(data, addr)
             elif packet_id == RakNetPacketId.OPEN_CONNECTION_REQUEST_1:
                 self._handle_open_connection_request_1(data, addr)
             elif packet_id == RakNetPacketId.OPEN_CONNECTION_REQUEST_2:
                 self._handle_open_connection_request_2(data, addr)
-            elif addr in self.server.sessions:
-                session = self.server.sessions[addr]
-                session.receive(data)
+            elif 0x80 <= packet_id <= 0x8F or packet_id in [0xC0, 0xA0, RakNetPacketId.CONNECTED_PING, RakNetPacketId.CONNECTED_PONG, RakNetPacketId.DISCONNECT_NOTIFICATION]:
+                if addr in self.server.sessions:
+                    session = self.server.sessions[addr]
+                    session.receive(data)
         except Exception as e:
             self.server.logger.error(f"Error processing datagram from {addr}: {e}")
 
@@ -74,8 +77,9 @@ class _RakNetServerProtocol(asyncio.DatagramProtocol):
             if magic != RakNetProtocol._encode_magic():
                 return
 
-            response = RakNetProtocol.encode_unconnected_ping(timestamp, self.server.server_guid)
+            response = RakNetProtocol.encode_unconnected_pong(timestamp, self.server.server_guid, self.server.advertisement)
             self.transport.sendto(response, addr)
+            self.server.logger.debug(f"Responded to unconnected ping from {addr}")
         except Exception as e:
             self.server.logger.error(f"Error handling unconnected ping: {e}")
 

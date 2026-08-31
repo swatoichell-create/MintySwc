@@ -33,28 +33,35 @@ class ProxyBridge(RemoteRakNetClientListener):
         self._local_payloads = 0
 
     async def start(self):
-        await self._remote_client.start()
+        try:
+            await self._remote_client.start()
+        except Exception as e:
+            self.logger.error(f"Failed to start remote client: {e}", exc_info=True)
+            await self.close("start failed")
 
     async def from_client(self, payload: bytes):
-        translated = McpeTranslator.client_to_server(payload, self._inspector, record_drop=self._record_drop)
-        if not translated:
-            return
-
-        with self._lock:
-            if self._closed:
+        try:
+            translated = McpeTranslator.client_to_server(payload, self._inspector, record_drop=self._record_drop)
+            if not translated:
                 return
-            self._client_payloads += 1
-            if not self._remote_ready_for_game:
-                for pkt in translated:
-                    self._pending_client_payloads.append(pkt)
-                send_now = None
-            else:
-                send_now = translated
 
-        if send_now:
-            for pkt in send_now:
-                self.logger.debug(f"Sending translated client payload to remote: {self._payload_summary(pkt)}")
-                self._remote_client.send_game(pkt)
+            with self._lock:
+                if self._closed:
+                    return
+                self._client_payloads += 1
+                if not self._remote_ready_for_game:
+                    for pkt in translated:
+                        self._pending_client_payloads.append(pkt)
+                    send_now = None
+                else:
+                    send_now = translated
+
+            if send_now:
+                for pkt in send_now:
+                    self.logger.debug(f"Sending translated client payload to remote: {self._payload_summary(pkt)}")
+                    self._remote_client.send_game(pkt)
+        except Exception as e:
+            self.logger.error(f"Error in from_client: {e}", exc_info=True)
 
     async def close(self, reason: str):
         with self._lock:
