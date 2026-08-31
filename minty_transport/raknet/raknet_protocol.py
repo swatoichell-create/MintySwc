@@ -6,8 +6,8 @@ from enum import IntEnum
 
 
 class RakNetPacketId(IntEnum):
-    UNCONNECTED_PING = 0x00
-    UNCONNECTED_PING_OPEN_CONNECTIONS = 0x01
+    UNCONNECTED_PING = 0x01
+    UNCONNECTED_PING_OPEN_CONNECTIONS = 0x02
     OPEN_CONNECTION_REQUEST_1 = 0x05
     OPEN_CONNECTION_REPLY_1 = 0x06
     OPEN_CONNECTION_REQUEST_2 = 0x07
@@ -18,6 +18,7 @@ class RakNetPacketId(IntEnum):
     DISCONNECT_NOTIFICATION = 0x15
     CONNECTED_PING = 0x00
     CONNECTED_PONG = 0x03
+    UNCONNECTED_PONG = 0x1C
     ACK = 0xC0
     NACK = 0xA0
     DATA_PACKET_0 = 0x80
@@ -95,11 +96,12 @@ class RakNetProtocol:
 
     @staticmethod
     def encode_unconnected_pong(timestamp: int, server_guid: int, advertisement: str) -> bytes:
+        # Format: ID (1) | Time (8 BE) | Server GUID (8 BE) | Magic (16) | Length (2 BE) | Server ID string
         buffer = bytearray()
-        buffer.append(RakNetPacketId.UNCONNECTED_PING_OPEN_CONNECTIONS)
+        buffer.append(RakNetPacketId.UNCONNECTED_PONG)  # UNCONNECTED_PONG packet ID
         buffer.extend(timestamp.to_bytes(8, byteorder='big', signed=False))
-        buffer.extend(RakNetProtocol._encode_magic())
         buffer.extend(server_guid.to_bytes(8, byteorder='big', signed=False))
+        buffer.extend(RakNetProtocol._encode_magic())
         buffer.extend(len(advertisement).to_bytes(2, byteorder='big', signed=False))
         buffer.extend(advertisement.encode('utf-8'))
         return bytes(buffer)
